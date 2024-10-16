@@ -23,6 +23,8 @@ menu "App Configuration"
             bool "VOICE_RELAY"
         config APP_SOUND_EVENTS_DETECTION
             bool "SOUND_EVENTS_DETECTION"
+        config APP_ENG_TEACHER
+            bool "ENG_TEACHER"
 
     endchoice
 

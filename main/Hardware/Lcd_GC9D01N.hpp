@@ -13,7 +13,6 @@ public:
   void setFont(Font f) const override final;
   void setRotation(Rotation rot) const override final;
 
-  void print_string_ln(const char *fmt, ...) override final;
   void print_string(unsigned x, unsigned y, const char *fmt,
                     ...) override final;
   void draw(unsigned x, unsigned y, unsigned w, unsigned h,
@@ -22,5 +21,5 @@ public:
   void clear() override final;
 
 private:
-  void draw_string(unsigned x, unsigned y, const char *fmt, va_list argp);
+  void draw_string(const char *fmt, va_list argp);
 };

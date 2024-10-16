@@ -5,8 +5,6 @@
 #include "esp_vad.h"
 
 #include "audio_preprocessor.h"
-#include "freertos/portmacro.h"
-#include "freertos/projdefs.h"
 #include "i2s_rx_slot.h"
 #include "kws_task.h"
 
@@ -31,9 +29,8 @@ static void *s_agc_handle = NULL;
 static ns_handle_t s_ns_handle = NULL;
 static vad_handle_t s_vad_handle = NULL;
 
-#define DET_IS_VOICED_THRESHOLD       0.9
-#define DET_VOICED_FRAMES_WINDOW      26
-#define DET_VOICED_FRAMES_THRESHOLD   12
+#define DET_VOICED_FRAMES_WINDOW      16
+#define DET_VOICED_FRAMES_THRESHOLD   8
 #define DET_UNVOICED_FRAMES_THRESHOLD 2
 
 #define KWS_FRAME_SZ          (KWS_FRAME_LEN * MIC_ELEM_BYTES)
@@ -55,6 +52,18 @@ static const float silence_mfcc_coeffs[KWS_NUM_MFCC] = {
 static audio_t current_frames[DET_VOICED_FRAMES_WINDOW * MIC_FRAME_LEN] = {0};
 static raw_audio_t raw_data_buffer[MIC_FRAME_LEN] = {0};
 
+static void vad_start() {
+  xSemaphoreTake(xMicSema, portMAX_DELAY);
+  xEventGroupSetBits(xMicEventGroup, MIC_ON_MSK);
+  xEventGroupSetBits(xKWSEventGroup, VAD_RUNNING_MSK);
+}
+
+static void vad_stop() {
+  xEventGroupClearBits(xMicEventGroup, MIC_ON_MSK);
+  xEventGroupClearBits(xKWSEventGroup, VAD_RUNNING_MSK);
+  xSemaphoreGive(xMicSema);
+}
+
 static size_t compute_max_abs(audio_t *data, size_t len) {
   size_t max_abs = 0;
   for (size_t j = 0; j < len; j++) {
@@ -75,10 +84,20 @@ static void vad_task(void *pv) {
   WordDesc_t word;
 
   for (;;) {
+    const auto xBits =
+      xEventGroupWaitBits(xKWSEventGroup, VAD_RUNNING_MSK | VAD_STOP_MSK,
+                          pdFALSE, pdFALSE, portMAX_DELAY);
+
+    if (xBits & VAD_STOP_MSK) {
+      break;
+    } else if (!(xBits & VAD_RUNNING_MSK)) {
+      continue;
+    }
+
     audio_t *proc_data =
       &current_frames[(cur_frame % DET_VOICED_FRAMES_WINDOW) * MIC_FRAME_LEN];
     if (i2s_rx_slot_read(raw_data_buffer, sizeof(raw_data_buffer),
-                         portMAX_DELAY) < 0) {
+                         MIC_FRAME_LEN_MS) < 0) {
       continue;
     }
 
@@ -143,6 +162,11 @@ static void vad_task(void *pv) {
 
     cur_frame++;
   }
+
+  ESP_LOGD(TAG, "stop vad_task");
+  xEventGroupSetBits(xKWSEventGroup, VAD_STOPPED_MSK);
+  xVADTaskHandle = NULL;
+  vTaskDelete(NULL);
 }
 
 void kws_task(void *pv) {
@@ -163,7 +187,7 @@ void kws_task(void *pv) {
     }
     ESP_LOGD(TAG, "recogninze req_words=%d", req_words);
 
-    i2s_rx_slot_start();
+    vad_start();
     size_t det_words = 0;
     for (; det_words < req_words;) {
       WordDesc_t word = {.frame_num = 0, .max_abs = 0};
@@ -240,14 +264,15 @@ void kws_task(void *pv) {
       ESP_LOGI(TAG, ">> kws: %s", result);
       xQueueSend(xKWSResultQueue, &category, 0);
       xSemaphoreGive(xKWSSema);
+      det_words++;
     }
 
   CLEANUP:
-    xQueueReceive(xKWSRequestQueue, &req_words, 0);
-    i2s_rx_slot_stop();
+    vad_stop();
     xQueueReset(xWordQueue);
     xStreamBufferReset(xWordFramesBuffer);
-    xEventGroupSetBits(xKWSEventGroup, KWS_STOP_MSK);
+    xQueueReceive(xKWSRequestQueue, &req_words, 0);
+    xEventGroupSetBits(xKWSEventGroup, KWS_STOPPED_MSK);
   }
 }
 
@@ -321,7 +346,7 @@ int kws_task_init(kws_task_conf_t conf) {
 
   s_kws_task_params.pp =
     new AudioPreprocessor(KWS_NUM_MFCC, KWS_FRAME_LEN, KWS_NUM_FBANK_BINS,
-                          KWS_MEL_LOW_FREQ, KWS_MEL_HIGH_FREQ);
+                          conf.mel_low_freq, conf.mel_high_freq);
   s_kws_task_params.model_handle = conf.model_handle;
   xReturned =
     xTaskCreate(kws_task, "kws_task", configMINIMAL_STACK_SIZE + 1024 * 8,
@@ -331,13 +356,22 @@ int kws_task_init(kws_task_conf_t conf) {
     return -1;
   }
 
-  xEventGroupSetBits(xKWSEventGroup, KWS_RUNNING_MSK);
+  xEventGroupSetBits(xKWSEventGroup, KWS_RUNNING_MSK | KWS_STOPPED_MSK);
   return 0;
 }
 
 void kws_task_release() {
   xEventGroupClearBits(xKWSEventGroup, KWS_RUNNING_MSK);
   kws_req_cancel();
+
+  xEventGroupSetBits(xKWSEventGroup, VAD_STOP_MSK);
+  xEventGroupWaitBits(xKWSEventGroup, VAD_STOPPED_MSK, pdFALSE, pdFALSE,
+                      portMAX_DELAY);
+
+  if (xKWSTaskHandle) {
+    vTaskDelete(xKWSTaskHandle);
+    xKWSTaskHandle = NULL;
+  }
 
   if (s_agc_handle) {
     esp_agc_close(s_agc_handle);
@@ -376,14 +410,6 @@ void kws_task_release() {
     vEventGroupDelete(xKWSEventGroup);
     xKWSEventGroup = NULL;
   }
-  if (xVADTaskHandle) {
-    vTaskDelete(xVADTaskHandle);
-    xVADTaskHandle = NULL;
-  }
-  if (xKWSTaskHandle) {
-    vTaskDelete(xKWSTaskHandle);
-    xKWSTaskHandle = NULL;
-  }
   if (s_kws_task_params.pp) {
     delete s_kws_task_params.pp;
     s_kws_task_params.pp = NULL;
@@ -392,16 +418,19 @@ void kws_task_release() {
 
 void kws_req_word(size_t req_words) {
   if (xEventGroupGetBits(xKWSEventGroup) & KWS_RUNNING_MSK) {
+    xEventGroupWaitBits(xKWSEventGroup, KWS_STOPPED_MSK, pdTRUE, pdFALSE,
+                        portMAX_DELAY);
     if (xQueueSend(xKWSRequestQueue, &req_words, 0) == pdPASS) {
-      xEventGroupClearBits(xKWSEventGroup, KWS_STOP_MSK);
+      xEventGroupClearBits(xKWSEventGroup, KWS_STOPPED_MSK);
     }
   }
 }
 
 void kws_req_cancel() {
-  if (uxQueueMessagesWaiting(xKWSRequestQueue)) {
+  if (auto req_num = uxQueueMessagesWaiting(xKWSRequestQueue)) {
+    ESP_LOGD(TAG, "cancelled %d requests", req_num);
     xQueueReset(xKWSRequestQueue);
-    xEventGroupWaitBits(xKWSEventGroup, KWS_STOP_MSK, pdTRUE, pdFALSE,
-                        portMAX_DELAY);
   }
+  xEventGroupWaitBits(xKWSEventGroup, KWS_STOPPED_MSK, pdFALSE, pdFALSE,
+                      portMAX_DELAY);
 }

@@ -11,8 +11,6 @@
 #include "nn_model.h"
 
 #define KWS_NUM_FBANK_BINS 40
-#define KWS_MEL_LOW_FREQ   20
-#define KWS_MEL_HIGH_FREQ  4000
 
 #define KWS_NUM_MFCC    10
 #define KWS_WIN_MS      40
@@ -46,13 +44,18 @@ extern QueueHandle_t xKWSResultQueue;
 /*! \brief Global KWS event bits. */
 extern EventGroupHandle_t xKWSEventGroup;
 
-#define KWS_STOP_MSK    BIT0
-#define KWS_RUNNING_MSK BIT1
+#define KWS_RUNNING_MSK BIT0
+#define KWS_STOPPED_MSK BIT1
+#define VAD_RUNNING_MSK BIT2
+#define VAD_STOPPED_MSK BIT3
+#define VAD_STOP_MSK    BIT4
 
 struct kws_task_conf_t {
   nn_model_handle_t model_handle;
   int mic_gain;
   int ns_level;
+  size_t mel_low_freq;
+  size_t mel_high_freq;
 };
 
 /*!

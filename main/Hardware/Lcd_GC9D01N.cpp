@@ -3,6 +3,10 @@
 #include "Arduino_GFX_Library.h"
 #include "driver/gpio.h"
 
+#ifndef _countof
+#define _countof(arr) (sizeof(arr) / sizeof(arr[0]))
+#endif
+
 static constexpr char TAG[] = "Lcd";
 
 // H0075Y002-V0
@@ -52,40 +56,9 @@ void Lcd::setRotation(Rotation rot) const {
   }
 }
 
-void Lcd::setFont(Font f) const {
-  switch (f) {
-  default:
-  case Font::COURR08:
-    s_gfx->setFont(u8g_font_courR08);
-    break;
-  case Font::COURR10:
-    s_gfx->setFont(u8g_font_courR10);
-    break;
-  case Font::COURB10:
-    s_gfx->setFont(u8g_font_courB10);
-    break;
-  case Font::COURR14:
-    s_gfx->setFont(u8g_font_courR14);
-    break;
-  case Font::COURB24:
-    s_gfx->setFont(u8g_font_courB24);
-    break;
-  case Font::F6X10TR:
-    s_gfx->setFont(u8g2_font_6x10_tr);
-    break;
-  case Font::F8X13B:
-    s_gfx->setFont(u8g_font_8x13B);
-    break;
-  case Font::F9X15:
-    s_gfx->setFont(u8g_font_9x15);
-    break;
-  case Font::F9X18:
-    s_gfx->setFont(u8g_font_9x18);
-    break;
-  }
-}
+void Lcd::setFont(Font f) const {}
 
-void Lcd::draw_string(unsigned x, unsigned y, const char *fmt, va_list argp) {
+void Lcd::draw_string(const char *fmt, va_list argp) {
   const unsigned buf_size = 32;
   char buf[buf_size];
   memset(buf, 0, buf_size);
@@ -95,24 +68,17 @@ void Lcd::draw_string(unsigned x, unsigned y, const char *fmt, va_list argp) {
   uint16_t w, h;
   s_gfx->setTextColor(WHITE);
   s_gfx->setTextSize(5);
-  s_gfx->getTextBounds(buf, x, y, &x1, &y1, &w, &h);
+  s_gfx->getTextBounds(buf, 0, 0, &x1, &y1, &w, &h);
   x1 = (DISPLAY_WIDTH - w) / 2;
   y1 = (DISPLAY_HEIGHT - h) / 2;
   s_gfx->setCursor(x1, y1);
   s_gfx->print(buf);
 }
 
-void Lcd::print_string_ln(const char *fmt, ...) {
-  va_list argp;
-  va_start(argp, fmt);
-  draw_string(0, 0, fmt, argp);
-  va_end(argp);
-}
-
 void Lcd::print_string(unsigned x, unsigned y, const char *fmt, ...) {
   va_list argp;
   va_start(argp, fmt);
-  draw_string(x, y, fmt, argp);
+  draw_string(fmt, argp);
   va_end(argp);
 }
 

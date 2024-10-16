@@ -1,36 +1,14 @@
 set(3RDPARTY_DIR "${PROJECT_DIR}/3rdparty")
 
-set(U8G2_DIR "${3RDPARTY_DIR}/u8g2")
-set(U8G2_SRC
-    "${U8G2_DIR}/csrc/u8x8_setup.c"
-    "${U8G2_DIR}/csrc/u8x8_8x8.c"
-    "${U8G2_DIR}/csrc/u8x8_display.c"
-    "${U8G2_DIR}/csrc/u8x8_cad.c"
-    "${U8G2_DIR}/csrc/u8x8_byte.c"
-    "${U8G2_DIR}/csrc/u8x8_gpio.c"
-    "${U8G2_DIR}/csrc/u8x8_d_ssd1306_128x64_noname.c"
-    "${U8G2_DIR}/csrc/u8g2_setup.c"
-    "${U8G2_DIR}/csrc/u8g2_cleardisplay.c"
-    "${U8G2_DIR}/csrc/u8g2_buffer.c"
-    "${U8G2_DIR}/csrc/u8g2_fonts.c"
-    "${U8G2_DIR}/csrc/u8g2_font.c"
-    "${U8G2_DIR}/csrc/u8g2_hvline.c"
-    "${U8G2_DIR}/csrc/u8g2_ll_hvline.c"
-    "${U8G2_DIR}/csrc/u8g2_intersection.c"
-    "${U8G2_DIR}/csrc/u8g2_d_setup.c"
-    "${U8G2_DIR}/csrc/u8g2_d_memory.c"
-    "${U8G2_DIR}/cppsrc/U8x8lib.cpp")
-set(U8G2_INC "${U8G2_DIR}/cppsrc" "${U8G2_DIR}/csrc")
-
 if(${CONFIG_APP_VOICE_RELAY})
-  set(KWS_SRC "kws/VoiceRelay.cpp" "kws/kws_event_task.cpp" "kws/kws_model.cpp"
-              "kws/kws_task.cpp")
-  set(KWS_INC "kws")
+  set(VOICE_RELAY_SRC "kws/kws_event_task.cpp" "kws/kws_task.cpp"
+                      "voice_relay/VoiceRelay.cpp" "voice_relay/model.cpp")
+  set(VOICE_RELAY_INC "kws")
 
   add_compile_definitions(KWS_INFERENCE_THRESHOLD=0.9)
 
-  set(APP_SCENARIO_SRC ${KWS_SRC})
-  set(APP_SCENARIO_INC ${KWS_INC})
+  set(APP_SCENARIO_SRC ${VOICE_RELAY_SRC})
+  set(APP_SCENARIO_INC ${VOICE_RELAY_INC})
 elseif(${CONFIG_APP_SOUND_EVENTS_DETECTION})
   set(SED_SRC
       "sed/SED.cpp" "sed/sed_task.cpp" "sed/sed_model_baby_cry.cpp"
@@ -42,6 +20,29 @@ elseif(${CONFIG_APP_SOUND_EVENTS_DETECTION})
 
   set(APP_SCENARIO_SRC ${SED_SRC})
   set(APP_SCENARIO_INC ${SED_INC})
+elseif(${CONFIG_APP_ENG_TEACHER})
+  set(WAV_PLAYER_DIR "${PROJECT_DIR}/main/VoiceMsgPlayer")
+  set(WAV_PLAYER_SRC
+      "${WAV_PLAYER_DIR}/I2sTx.cpp"
+      "${WAV_PLAYER_DIR}/VoiceMsgPlayer.cpp"
+      "${WAV_PLAYER_DIR}/WavPlayer.cpp"
+      "${WAV_PLAYER_DIR}/voice_msg_samples.cpp"
+      "${WAV_PLAYER_DIR}/ref_objects_samples.cpp"
+      "${WAV_PLAYER_DIR}/ref_numbers_samples.cpp")
+  set(WAV_PLAYER_INC "${WAV_PLAYER_DIR}/")
+
+  set(ENG_TEACHER_SRC
+      "kws/kws_task.cpp" "kws/kws_event_task.cpp"
+      "eng_teacher/ObjectsRecognition.cpp" "eng_teacher/objects_model.cpp" "eng_teacher/numbers_model.cpp"
+      "eng_teacher/bitmaps.cpp")
+  set(ENG_TEACHER_INC "eng_teacher" "kws")
+
+  add_compile_definitions(OBJECTS_INFERENCE_THRESHOLD=0.9)
+  add_compile_definitions(NUMBERS_INFERENCE_THRESHOLD=0.9)
+  add_compile_definitions(VOICE_MSGS_VOLUME=0.5)
+
+  set(APP_SCENARIO_SRC ${ENG_TEACHER_SRC} ${WAV_PLAYER_SRC})
+  set(APP_SCENARIO_INC ${ENG_TEACHER_INC} ${WAV_PLAYER_INC})
 endif()
 
 set(GFX_DIR "${3RDPARTY_DIR}/Arduino_GFX-1.3.7")
@@ -51,8 +52,7 @@ set(GFX_SRC
     "${GFX_DIR}/src/Arduino_GFX.cpp"
     "${GFX_DIR}/src/Arduino_TFT.cpp"
     "${GFX_DIR}/src/Arduino_G.cpp"
-    "${GFX_DIR}/src/display/Arduino_GC9D01N.cpp"
-    )
+    "${GFX_DIR}/src/display/Arduino_GC9D01N.cpp")
 set(GFX_INC "${GFX_DIR}/src" "${GFX_DIR}/src/display" "${GFX_DIR}/src/databus")
 
 set(FAST_LED_DIR "${3RDPARTY_DIR}/FastLED-3.6.0")
@@ -77,7 +77,6 @@ idf_component_register(
   "./App/Touch.cpp"
   "./Hardware/Led_APA102.cpp"
   "./Hardware/Lcd_GC9D01N.cpp"
-  ${U8G2_SRC}
   ${GFX_SRC}
   ${FAST_LED_SRC}
   ${TOUCH_SRC}
@@ -86,7 +85,6 @@ idf_component_register(
   "./"
   "./App/include"
   "./Hardware"
-  ${U8G2_INC}
   ${GFX_INC}
   ${FAST_LED_INC}
   ${TOUCH_INC}

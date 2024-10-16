@@ -1,4 +1,5 @@
 #include "App.hpp"
+#include "Lcd_GC9D01N.hpp"
 #include "Status.hpp"
 #include "git_version.h"
 #include "sed_task.h"
@@ -60,7 +61,7 @@ struct Main : State {
   }
   void enterAction(App *app) override final {
     app->p_display->clear();
-    app->p_display->print_string_ln("OFF");
+    app->p_display->print_string(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2, "OFF");
     app->p_display->send();
   }
   void exitAction(App *app) override final {
@@ -77,7 +78,7 @@ struct Main : State {
       nn_model_get_label(s_model_handle, category, label, sizeof(label));
       ESP_LOGI(TAG, "Detected: %s", label);
       app->p_display->clear();
-      app->p_display->print_string_ln("ON");
+      app->p_display->print_string(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2, "ON");
       app->p_display->send();
       vTaskDelay(pdMS_TO_TICKS(1000));
       xQueueReceive(xSEDResultQueue, &category, 0);
@@ -85,7 +86,8 @@ struct Main : State {
       gpio_set_level(LOCK_PIN_INV, 1);
       xEventGroupClearBits(xStatusEventGroup, STATUS_STATE_UNLOCKED_MSK);
       app->p_display->clear();
-      app->p_display->print_string_ln("OFF");
+      app->p_display->print_string(DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2,
+                                   "OFF");
       app->p_display->send();
     }
   }

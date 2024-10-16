@@ -19,7 +19,23 @@ When a certain event is detected, the relay is activated and sends a signal to a
 - barking
 - coughing
 
+## Teacher (english)
+
+A simple application that draws objects on the screen and waits for the user to pronounce them out loud. After several unsuccessful attempts, the board will give a hint and play a reference pronunciation.
+
+### Objects:
+
+- cat
+- dog
+- car
+- house
+- one
+- two
+- three
+
 # Build instructions
+
+ESP-IDF version: v4.4.8
 
 ## Supported devices
 

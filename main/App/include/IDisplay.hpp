@@ -7,17 +7,7 @@
  */
 class IDisplay {
 public:
-  enum class Font : unsigned {
-    COURR08,
-    COURR10,
-    COURB10,
-    COURR14,
-    COURB24,
-    F6X10TR,
-    F8X13B,
-    F9X15,
-    F9X18,
-  };
+  enum class Font : unsigned {};
   enum class Rotation : unsigned {
     PORTRAIT,
     UPSIDE_DOWN,
@@ -33,11 +23,6 @@ public:
    * \param rot Rotation.
    */
   virtual void setRotation(Rotation rot = Rotation::UPSIDE_DOWN) const = 0;
-  /*!
-   * \brief Print string.
-   * \param fmt Formatted message string.
-   */
-  virtual void print_string_ln(const char *fmt, ...) = 0;
   /*!
    * \brief Print string.
    * \param x X coordinate.
